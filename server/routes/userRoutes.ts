@@ -4,7 +4,10 @@ import { protect } from '../middlewares/auth.js';
 
 const userRouter = express.Router();
 
-userRouter.get('/credits', protect, getUserCredits);
+userRouter.get('/credits', (req, res, next) => {
+  console.log('✅ /credits route hit');
+  next();
+}, protect, getUserCredits);
 
 userRouter.post('/project', protect, createUserProject);
 

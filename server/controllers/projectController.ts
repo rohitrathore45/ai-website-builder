@@ -1,7 +1,6 @@
 import { Request, Response } from 'express'
 import prisma from '../lib/prisma.js';
 import openai from '../configs/openai.js';
-import { log } from 'node:console';
 
 // controller function to make revision
 export const makeRevision = async (req: Request, res: Response) => {
@@ -55,7 +54,7 @@ export const makeRevision = async (req: Request, res: Response) => {
         // enhance user prompt 
 
         const promptEnhanceResponse = await openai.chat.completions.create({
-            model: 'z-ai/glm-4.5-air:free',
+            model: 'stepfun/step-3.5-flash:free',
             messages: [
                 {
                     role: 'system',
@@ -96,7 +95,7 @@ export const makeRevision = async (req: Request, res: Response) => {
 
         // generate website code
         const codeGenerationResponse = await openai.chat.completions.create({
-            model: 'z-ai/glm-4.5-air:free',
+            model: 'stepfun/step-3.5-flash:free',
             messages: [
                 {
                     role: 'system',
@@ -121,6 +120,23 @@ export const makeRevision = async (req: Request, res: Response) => {
         })
 
         const code = codeGenerationResponse.choices[0].message.content || '';
+
+        if(!code) {
+            await prisma.conversation.create({
+                data: {
+                    role: 'assistant',
+                    content: "Unable to generate the code, please try again",
+                    projectId
+                }
+            })
+
+            await prisma.user.update({
+                where: {id: userId},
+                data: { credits: {increment: 5}}
+            })
+
+            return;
+        }
 
         const version = await prisma.version.create({
             data: {
@@ -166,30 +182,28 @@ export const rollbackToVersion = async (req: Request, res: Response) => {
         const userId = req.userId;
 
         if(!userId) {
-            return res.status(401).json({
-                message: "Unauthorized"
-            })
+            return res.status(401).json({ message: "Unauthorized" })
         }
 
         const { projectId, versionId } = req.params;
 
         const project = await prisma.websiteProject.findUnique({
-            where: {id: projectId, userId},
-            include: {versions: true}
+            where: { id: projectId, userId },
+            include: { versions: true }
         })
 
         if(!project) {
-            return res.status(404).json({message: "Project not found"})
+            return res.status(404).json({ message: "Project not found" })
         }
 
-        const version = project.versions.find((version) => version.id === versionId)
+        const version = project.versions.find((v) => v.id === versionId)
 
         if(!version) {
-            return res.status(404).json({ message: "Version not found"})
+            return res.status(404).json({ message: "Version not found" })
         }
 
         await prisma.websiteProject.update({
-            where: {id: projectId, userId},
+            where: { id: projectId, userId },
             data: {
                 current_code: version.code,
                 current_version_index: version.id
@@ -199,16 +213,16 @@ export const rollbackToVersion = async (req: Request, res: Response) => {
         await prisma.conversation.create({
             data: {
                 role: 'assistant',
-                content: "I've rolled back your website to select version. You can now preview it.",
+                content: "I've rolled back your website to the selected version. You can now preview it.",
                 projectId
             }
         })
 
-        res.json({ message : 'Version rolled back'})
+        res.json({ message: 'Version rolled back successfully' })
 
     } catch (error: any) {
         console.log(error.code || error.message);
-        res.status(500).json({ message: error.message})
+        res.status(500).json({ message: error.message })
     }
 }
 
@@ -248,7 +262,7 @@ export const getProjectPreview = async (req: Request, res: Response) => {
             })
         }
 
-        const project = await prisma.websiteProject.delete({
+        const project = await prisma.websiteProject.findUnique({
             where: {id: projectId, userId},
         })
 
