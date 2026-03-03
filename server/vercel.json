@@ -1,18 +1,13 @@
 {
     "version": 2,
     "buildCommand": "npm run build",
-    "builds": [
-        {
-            "src": "dist/server.js",
-            "use": "@vercel/node",
-            "config": {
-                "includeFiles": [
-                    "dist/**",
-                    "generated/**"
-                ]
-            }
+    "outputDirectory": "dist",
+    "functions": {
+        "dist/server.js": {
+            "memory": 1024,
+            "maxDuration": 30
         }
-    ],
+    },
     "routes": [
         {
             "src": "/(.*)",
